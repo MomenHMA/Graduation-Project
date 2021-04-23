@@ -33,7 +33,12 @@ wire [3:0] carry;
 wire [27:0] result;
 reg [11:0] GRS_norm;
 
-BCD_adder BCD_adder (		.M1(Mr), 		.M2(one), 		.Mr(result), 		.carry(carry) 	                   );							 
+BCD_adder BCD_adder (
+		.M1(Mr), 
+		.M2(one), 
+		.Mr(result), 
+		.carry(carry) 
+	                   );							 
 	 
 always@(*)     
 begin

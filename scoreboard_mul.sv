@@ -1,46 +1,55 @@
 class scoreboard extends uvm_subscriber #(result_transaction);
-   `uvm_component_utils(scoreboard);
-
-
-   uvm_tlm_analysis_fifo #(command_transaction) cmd_f;
-   
-   function new (string name, uvm_component parent);
-      super.new(name, parent);
-   endfunction : new
-
-   function void build_phase(uvm_phase phase);
-      cmd_f = new ("cmd_f", this);
-   endfunction : build_phase
-
-function result_transaction predict_result(command_transaction cmd);
-   result_transaction predicted;
-      
-   predicted = new("predicted");
-   predicted.result_dec = cmd.a_dec * cmd.b_dec;
-
-   return predicted;
-
-endfunction : predict_result
-   
-
-   function void write(result_transaction t);
-      command_transaction cmd;
-      result_transaction predicted;
-     real diff ;
-     real diff_2;
-     real predicted_result_2;
-     //real claculated_result_2;
+  `uvm_component_utils(scoreboard);
   
-     rand_num result_num;
-     //do begin
-        cmd_f.try_get(cmd);
-     //end
-     //while (!cmd_f.try_get(cmd));
+  uvm_tlm_analysis_fifo #(sequence_item) cmd_f ; 
+  
+  function new (string name , uvm_component parent );
+    super.new (name,parent);
+  endfunction
+  
+  function void build_phase (uvm_phase phase);
+    cmd_f = new ("cmd_f",this);
+  endfunction
+  
+  function result_transaction predict_result(sequence_item cmd);
+    result_transaction predicted;
+    predicted = new("predicted") ;
+    predicted.result = $shortrealtobits(
+      $bitstoshortreal({cmd.sign_1, cmd.exp_1, cmd.mantissa_1})*
+      $bitstoshortreal({cmd.sign_2, cmd.exp_2, cmd.mantissa_2}));
+    return predicted ; 
+  endfunction
+  
+  function void write (result_transaction t);
+    sequence_item cmd ; 
+    result_transaction predicted ;
+    bit [63:0] predicted_2 ; 
+    cmd       = new ("cmd")      ;
+    predicted = new ("predicted");
+    
+    
+    cmd_f.try_get(cmd);
 
-      predicted = predict_result(cmd);
-     
-     if(predicted.result_dec < 1e-95 && predicted.result_dec > -1e-95 
-       && predicted.result_dec != 0 )
+    predicted = predict_result(cmd) ; 
+    predicted_2 = $realtobits(
+      $bitstoshortreal({cmd.sign_1, cmd.exp_1, cmd.mantissa_1})*
+      $bitstoshortreal({cmd.sign_2, cmd.exp_2, cmd.mantissa_2}));
+    
+    if(predicted.result[30:0] == 31'b11111111_00000000_00000000_0000000)
+       begin
+         predicted.flags[2] = 1 ;
+         predicted.flags[0] = 1 ;
+         if( t.flags != predicted.flags)
+            `uvm_error("SELF CHECKER", "FAIL" )
+         else
+             `uvm_info ("SELF CHECKER", {"PASS"}, UVM_LOW)
+          $display ("OVERFLOW case");      
+         $display("predicted flags = %b " , predicted.flags);
+         $display ("dut flags = %b" , t.flags); 
+         return;
+       end
+    
+    if(predicted.result[30:0] == 31'b0 )
        begin
          predicted.flags[1] = 1 ;
          predicted.flags[0] = 1 ;
@@ -53,90 +62,34 @@ endfunction : predict_result
          $display ("dut flags = %b" , t.flags);  
          return;
        end
-     
-     if(predicted.result_dec > 9999999e90 || predicted.result_dec < -9999999e90)
-       begin
-         predicted.flags[2] = 1 ;
-         predicted.flags[0] = 1 ;
-         if( t.flags != predicted.flags)
-            `uvm_error("SELF CHECKER", "FAIL" )
-         else
-             `uvm_info ("SELF CHECKER", {"PASS"}, UVM_LOW)
-           $display ("OVERFLOW case") ;      
-         $display("predicted flags = %b " , predicted.flags);
-         $display ("dut flags = %b" , t.flags); 
-         return;
-       end
-      
-     if(t.result_dec > predicted.result_dec)
-       diff = t.result_dec - predicted.result_dec ;
-     else
-       diff = predicted.result_dec - t.result_dec ;
-     
-     result_num = decode(t.Result);
-     
-     predicted_result_2 = predicted.result_dec;
-     
-     if(predicted_result_2 < 0 )
-       predicted_result_2 = -1.0 * predicted_result_2 ; 
-     
-       
-     
-     if(predicted_result_2 > 1 )
-       begin
-         while(predicted_result_2 > 10)
-           predicted_result_2 = predicted_result_2/10.0 ;
-         //$display(predicted_result_2);
-         
-       end
-     else
-       begin
-         while(predicted_result_2 < 1)
-           predicted_result_2 = predicted_result_2*10.0 ;
-         //$display(predicted_result_2);
-       end
-     
-         predicted_result_2 = predicted_result_2*1e7;
-         diff_2 = predicted_result_2 - $itor(int'(predicted_result_2)) ;
-         //$display(predicted_result_2);
-         //$display( $itor(int'(predicted_result_2)));
-         
- 
     
-     //$display(diff_2);
-     if( (diff_2 < 0 && diff_2 <-1e-5 ) || 
-        ((diff_2>0.49999)&& (diff_2-0.49999 < 1e-5) ) ) 
-       predicted.flags[0] = 1 ;
-    /* $display("predicted flags = %b " , predicted.flags);
-     $display ("dut flags = %b" , t.flags);
-     $display("calculated result = " , t.result_dec);
-     $display("differnce = " , diff);*/
-     
-     
-       
-     //result_num = decode(t.Result);
-     $display("operand1 = " , cmd.a_dec) ;
-         $display("operand2 = " , cmd.b_dec) ;
-         $display("predicted result = " , predicted.result_dec) ;
-         $display("predicted flags = %b " , predicted.flags);
-         $display ("dut flags = %b" , t.flags) ;
-         $display("calculated result = " , t.result_dec) ;
-         $display("differnce = " , diff) ;
-     
-     if (diff > (10.0**$itor(result_num.exp)) || t.flags != predicted.flags)
-       begin
-         /*$display("operand1 = " , cmd.a_dec) ;
-         $display("operand2 = " , cmd.b_dec) ;
-         $display("predicted result = " , predicted.result_dec) ;
-         $display("predicted flags = %b " , predicted.flags);
-         $display ("dut flags = %b" , t.flags) ;
-         $display("calculated result = " , t.result_dec) ;
-         $display("differnce = " , diff) ;*/
-         `uvm_error("SELF CHECKER", "FAIL" )
-       end
-       
-     else
-        `uvm_info ("SELF CHECKER", {"PASS"}, UVM_LOW)
-
-   endfunction : write
-endclass : scoreboard
+    if(predicted_2[27] == 1'b1)
+        predicted.flags[0] = 1 ;
+        
+      
+      
+    
+    if((($bitstoshortreal(predicted.result) == $bitstoshortreal(t.result))||
+       (t.result[22:0]-predicted.result[22:0] == 1'b1 )||
+        (predicted.result[22:0] - t.result[22:0] == 1'b1 )) &&
+       predicted.flags == t.flags
+      )
+      `uvm_info ("SELF_CHECKER" ,"PASS" ,UVM_LOW)
+    else
+      begin
+        `uvm_error("SELF_CHECKER","FAIL");
+        $display("operand1 = " ,
+             $bitstoshortreal({cmd.sign_1, cmd.exp_1, cmd.mantissa_1}));
+        $display("operand2 =  " ,
+             $bitstoshortreal({cmd.sign_2, cmd.exp_2, cmd.mantissa_2})); 
+        $display("predicted =  ",$bitstoshortreal(predicted.result));
+        $display("calculated = ",$bitstoshortreal(t.result));
+        $display("predicted flags = %b " , predicted.flags); 
+        $display ("dut flags = %b" , t.flags); 
+        $display("%b" , predicted_2);
+      end
+  endfunction
+  
+endclass
+    
+    

@@ -1,50 +1,36 @@
-
 class command_monitor extends uvm_component;
-   `uvm_component_utils(command_monitor);
+  `uvm_component_utils (command_monitor);
   
-  virtual bfm bfm;
+  virtual bfm bfm ; 
+  uvm_analysis_port #(sequence_item) ap ;
   
-  uvm_analysis_port #(command_transaction) cm_port;
+  function new (string name , uvm_component parent);
+    super.new(name,parent);
+  endfunction
   
-   function new (string name, uvm_component parent);
-      super.new(name,parent);
-   endfunction
-  
-   function void build_phase(uvm_phase phase);
-     if(!uvm_config_db #(virtual bfm)::get(null, "*","bfm", bfm))
-	`uvm_fatal("COMMAND MONITOR", "Failed to get BFM")
-      bfm.command_monitor_h = this;
-     cm_port  = new("cm_port",this);
-   endfunction : build_phase
-  
-  function void write_to_monitor(real a_dec, real b_dec);
-     command_transaction cmd;
-     cmd = new("cmd");
-     cmd.a_dec = a_dec;
-     cmd.b_dec = b_dec;
-   // $display(cmd.a_dec);
-   // $display(cmd.b_dec);
+  function void build_phase (uvm_phase phase);
+    if(!uvm_config_db #(virtual bfm)::get(null,"*","bfm",bfm) )
+      `uvm_fatal("COMMAND MONITOR", "Failed to get BFM");
     
-     cm_port.write(cmd);
+    ap = new("ap",this) ;
+  endfunction
+  
+  function void connect_phase(uvm_phase phase);
+    bfm.command_monitor_h = this ; 
+  endfunction
+  
+  function void write_to_monitor (bit[31:0] operand1 , bit[31:0] operand2);
+    sequence_item cmd;
+    cmd = new("cmd");
+    cmd.sign_1     = operand1 [31]    ;
+    cmd.exp_1      = operand1 [30:23] ;
+    cmd.mantissa_1 = operand1 [22:0]  ;
+    cmd.sign_2     = operand2 [31]    ;
+    cmd.exp_2      = operand2 [30:23] ;
+    cmd.mantissa_2 = operand2 [22:0]  ;
     
-   endfunction : write_to_monitor
+    ap.write(cmd);
+  endfunction
   
-  /* task run_phase(uvm_phase phase);
-      command_transaction  command;
-      phase.raise_objection(this);
-
-     repeat (1) begin
-        command = command_transaction::type_id::create("command");
-        //command.random();
-        //command.dec();
-       command.a_dec = ((-1.0)**$itor(0))*$itor(7654321)*(10.0**$itor(25)); 
-       command.b_dec = ((-1.0)**$itor(0))*$itor(6598732)*(10.0**$itor(20));
-       write_to_monitor(command.a_dec , command.b_dec); 
-      end
-     #500;
-
-      phase.drop_objection(this);
-   endtask : run_phase*/
-  
-  
-endclass : command_monitor
+endclass
+    

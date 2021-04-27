@@ -19,13 +19,7 @@ module top;
     
     uvm_config_db #(virtual bfm)::set(null, "*", "bfm", bfm);
     run_test("random_test");  
-   /* real x = 2.423400006570939e+60;
-    while(x>10)
-      x = x/10.0; 
    
-    
-    $display($int'(x));
-    */
 
   end  
     
